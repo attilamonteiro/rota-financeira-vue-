@@ -251,12 +251,11 @@ const lastMaintenanceDate = computed(() => {
 const onSubmit = handleSubmit(async (values) => {
   const mileageNumber = parseLocalizedNumber(values.mileage);
   try {
-    if (carStore.firstLicensePlate) {
-      await carStore.updateCarMileage(
-        carStore.firstLicensePlate,
-        mileageNumber
-      );
-      await carStore.getCarByPlate(carStore.firstLicensePlate);
+    const currentCar = carStore.car;
+    if (currentCar?.id) {
+      await carStore.updateCarMileage(currentCar.id, mileageNumber);
+      // re-fetch p/ atualizar o display (a leitura por placa continua válida)
+      await carStore.getCarByPlate(currentCar.license_plate);
     }
 
     isMileageModalOpen.value = false;

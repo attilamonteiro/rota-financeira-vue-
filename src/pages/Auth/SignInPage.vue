@@ -136,16 +136,9 @@ const handleApiError = (statusCode) => {
   }
 };
 
-const continueWithGoogle = async () => {
-  try {
-    isLoading.value = true;
-    await registerStore.googleLogin();
-    router.push({ name: 'home' });
-  } catch (error) {
-    console.error('Google Login Error:', error);
-  } finally {
-    isLoading.value = false;
-  }
+const continueWithGoogle = () => {
+  // Redirect de página inteira para o OAuth do backend; o retorno cai em google-callback.
+  registerStore.googleLogin();
 };
 </script>
 

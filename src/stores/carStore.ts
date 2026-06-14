@@ -29,6 +29,31 @@ export type CarUpdatePayload = {
   current_mileage?: number;
 };
 
+// O backend valida fuelType contra um enum UPPER_SNAKE; o formulário envia
+// rótulos em PT. Mapeamos; se já vier um valor do enum, passa direto.
+const FUEL_TYPE_MAP: Record<string, string> = {
+  Gasolina: 'GASOLINE',
+  Etanol: 'ETHANOL',
+  Elétrico: 'ELECTRIC',
+  Diesel: 'DIESEL',
+  Flex: 'FLEX',
+};
+function mapFuelType(value?: string): string | undefined {
+  if (!value) return undefined;
+  return FUEL_TYPE_MAP[value] ?? value;
+}
+
+// Adaptador: o backend devolve camelCase (licensePlate, currentMileage). Várias
+// telas/stores (financialStore, baseMaintenanceStore, HomePage, FinancesPage,
+// Edit pages) leem license_plate/current_mileage. Mantemos esse shape no front.
+function toFrontendCar(raw: any): Car {
+  return {
+    ...raw,
+    license_plate: raw?.licensePlate ?? raw?.license_plate,
+    current_mileage: raw?.currentMileage ?? raw?.current_mileage,
+  } as Car;
+}
+
 export const useCarStore = defineStore('car', () => {
   const cars = ref<Car[]>([]);
   const car = ref<Car | null>(null);
@@ -41,14 +66,23 @@ export const useCarStore = defineStore('car', () => {
     error.value = null;
 
     try {
-      const { data } = await api().post(`${baseApi}/v1/cars`, payload);
+      // RegisterCarDto (camelCase). userId vem do token no backend.
+      const body = {
+        year: payload.year,
+        model: payload.model,
+        licensePlate: payload.license_plate,
+        currentMileage: payload.current_mileage,
+        chassis: payload.chassis,
+        color: payload.color,
+        brand: payload.brand,
+        fuelType: mapFuelType(payload.fuelType),
+      };
 
-      if (data && Object.keys(data).length > 0) {
-        car.value = data;
-        cars.value.push(data);
-      }
+      await api().post(`${baseApi}/v1/car`, body);
+      // POST retorna 201 com body vazio → recarrega a lista para refletir o carro.
+      await getCars();
 
-      return data;
+      return car.value;
     } catch (e: any) {
       const errData = e.response?.data || e;
       error.value = errData;
@@ -71,13 +105,12 @@ export const useCarStore = defineStore('car', () => {
     error.value = null;
 
     try {
-      const { data } = await api().get<Car[]>(`${baseApi}/v1/cars`);
+      const { data } = await api().get<any[]>(`${baseApi}/v1/car`);
 
-      cars.value = data;
+      cars.value = (data ?? []).map(toFrontendCar);
+      firstLicensePlate.value = cars.value[0]?.license_plate ?? null;
 
-      firstLicensePlate.value = data[0]?.license_plate ?? null;
-
-      return data;
+      return cars.value;
     } catch (e: any) {
       error.value = e.response?.data || e;
       throw error.value;
@@ -90,10 +123,12 @@ export const useCarStore = defineStore('car', () => {
     isLoading.value = true;
     error.value = null;
     try {
-      const { data } = await api().get(`${baseApi}/v1/cars/${license_plate}`);
-      car.value = data;
+      const { data } = await api().get(
+        `${baseApi}/v1/car/plate/${license_plate}`
+      );
+      car.value = toFrontendCar(data);
 
-      return data;
+      return car.value;
     } catch (e: unknown) {
       const err = e as any;
       error.value = err.response?.data || err;
@@ -103,16 +138,25 @@ export const useCarStore = defineStore('car', () => {
     }
   }
 
-  async function updateCar(license_plate: string, payload: CarUpdatePayload) {
+  // Atualização agora é por ID do carro (UUID), não pela placa.
+  async function updateCar(id: string, payload: CarUpdatePayload) {
     isLoading.value = true;
     error.value = null;
     try {
-      const { data } = await api().patch(
-        `${baseApi}/v1/cars/${license_plate}`,
-        payload
-      );
-      car.value = data;
-      return data;
+      // UpdateCarDto aceita só estes campos (camelCase). Placa e quilometragem
+      // NÃO são editáveis por esta rota (campos não suportados são ignorados).
+      const body: Record<string, unknown> = {};
+      if (payload.year !== undefined) body.year = payload.year;
+      if (payload.model !== undefined) body.model = payload.model;
+      if (payload.chassis !== undefined) body.chassis = payload.chassis;
+      if (payload.color !== undefined) body.color = payload.color;
+      if (payload.brand !== undefined) body.brand = payload.brand;
+      const fuel = mapFuelType(payload.fuel_type);
+      if (fuel !== undefined) body.fuelType = fuel;
+
+      const { data } = await api().patch(`${baseApi}/v1/car/${id}`, body);
+      car.value = toFrontendCar(data);
+      return car.value;
     } catch (e: unknown) {
       const err = e as any;
       error.value = err.response?.data || err;
@@ -122,19 +166,15 @@ export const useCarStore = defineStore('car', () => {
     }
   }
 
-  async function updateCarMileage(
-    license_plate: string,
-    current_mileage: number
-  ) {
+  async function updateCarMileage(id: string, current_mileage: number) {
     isLoading.value = true;
     error.value = null;
     try {
-      const { data } = await api().patch(
-        `${baseApi}/v1/cars/${license_plate}/mileage`,
-        { current_mileage }
-      );
-      car.value = data;
-      return data;
+      const { data } = await api().patch(`${baseApi}/v1/car/${id}/mileage`, {
+        currentMileage: current_mileage,
+      });
+      car.value = toFrontendCar(data);
+      return car.value;
     } catch (e: unknown) {
       const err = e as any;
       error.value = err.response?.data || err;

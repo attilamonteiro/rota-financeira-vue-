@@ -21,19 +21,19 @@ export const useRegisterStore = defineStore('register', {
   actions: {
     async fetchProfile() {
       try {
-        const { data } = await api().get(`${baseApi}/v1/user/profile`);
+        const { data } = await api().get(`${baseApi}/v1/user/me`);
         this.userProfile = data;
         return data;
       } catch (e: any) {
         throw e.response?.data || e;
       }
     },
-    async verifyEmail(email: string) {
+    async checkEmail(email: string) {
       try {
-        const { data } = await api().post(`${baseApi}/v1/user/verify`, {
-          email,
+        const { data } = await api().get(`${baseApi}/v1/user/check-email`, {
+          params: { email },
         });
-        return data;
+        return data as { exists: boolean };
       } catch (e: any) {
         throw e.response?.data || e;
       }
@@ -57,28 +57,19 @@ export const useRegisterStore = defineStore('register', {
 
     async login(payload: { email: string; password: string }) {
       try {
-        const { data } = await api().post(`${baseApi}/v1/login`, payload);
-        // Salva o token JWT no localStorage para uso automático pelo Axios
-        if (data?.token) {
-          localStorage.setItem('jwt', data.token);
-          console.log('[Auth] JWT salvo no localStorage:', data.token);
-        }
-        return data;
+        // Sucesso = HTTP 200. O backend entrega o token via cookie httpOnly
+        // (Set-Cookie); não há token no body para guardar.
+        await api().post(`${baseApi}/v1/auth/login`, payload);
       } catch (e: any) {
         throw e.response?.data || e;
       }
     },
 
     googleLogin() {
-      // Usar a URL completa da API definida nas variáveis de ambiente
-      // Isso funciona tanto em dev (direto no backend) quanto em prod
-
-      const url = `${baseApi}/v1/user/google`;
+      // Redirect de página inteira para o fluxo OAuth do backend.
+      // O retorno cai na rota SPA 'google-callback' já com o cookie de sessão.
+      const url = `${baseApi}/v1/auth/google`;
       window.location.href = url;
-    },
-
-    setSession(token: string) {
-      localStorage.setItem('jwt', token);
     },
 
     async updateUser(payload: {
@@ -91,10 +82,7 @@ export const useRegisterStore = defineStore('register', {
       newPassword?: string;
     }) {
       try {
-        const { data } = await api().patch(
-          `${baseApi}/v1/user/update`,
-          payload
-        );
+        const { data } = await api().patch(`${baseApi}/v1/user`, payload);
         await this.fetchProfile();
         return data;
       } catch (e: any) {

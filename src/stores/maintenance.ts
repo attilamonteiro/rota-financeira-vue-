@@ -4,9 +4,14 @@ import { ref } from 'vue';
 import { api } from '@/boot/axios';
 import { AxiosError } from 'axios';
 import { MaintenanceStatus, MaintenanceTag } from '@/pages/Maintenances/types';
-import { MAINTENANCE_CONFIG } from '@/constants/maintenances';
+import {
+  MAINTENANCE_CONFIG,
+  CONFIG_KEY_TO_BACKEND_TYPE,
+  type MaintenanceTypeKey,
+} from '@/constants/maintenances';
 import type { MaintenanceIcons } from '@/shared/types/maintenance';
 import { ListOption } from '@/shared/types/bottom-sheet';
+import { useCarStore } from '@/stores/carStore';
 
 const baseApi = import.meta.env.VITE_ROTA_API;
 
@@ -58,42 +63,63 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     return tags;
   }
 
-  async function getMaintenances(licensePlate: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async function getMaintenances(_licensePlate?: string) {
     isLoading.value = true;
 
     try {
-      const url = `${baseApi}/v1/maintenance/${licensePlate}/latest`;
+      const carStore = useCarStore();
+      const carId = carStore.car?.id ?? carStore.cars[0]?.id;
+      if (!carId) {
+        maintenances.value = [];
+        return maintenances.value;
+      }
+
+      const url = `${baseApi}/v1/maintenance/car/${carId}`;
       const { data } = await api().get(url);
+      const records: any[] = Array.isArray(data) ? data : data ? [data] : [];
 
-      const items = Array.isArray(data) ? data : [data];
+      // Último registro real por tipo (enum do backend).
+      const latestByType: Record<string, any> = {};
+      for (const r of records) {
+        const cur = latestByType[r.type];
+        if (
+          !cur ||
+          new Date(r.lastMaintenanceDate).getTime() >
+            new Date(cur.lastMaintenanceDate).getTime()
+        ) {
+          latestByType[r.type] = r;
+        }
+      }
 
-      maintenances.value = items.map((raw: any) => {
-        const mData = raw.data || {};
+      // Sempre montamos os 5 tipos conhecidos (mesmo sem registro), pra a tela
+      // exibir todos e permitir cadastrar os faltantes.
+      // NOTE: pendingSteps/pending-registration não existem no backend novo → 0.
+      const configKeys = Object.keys(MAINTENANCE_CONFIG) as MaintenanceTypeKey[];
 
-        const pendingSteps =
-          typeof raw.pendingSteps === 'number'
-            ? raw.pendingSteps
-            : typeof raw['pending-registration'] === 'number'
-            ? raw['pending-registration']
-            : mData.pendingSteps ?? 0;
+      maintenances.value = configKeys.map((configKey) => {
+        const raw = latestByType[CONFIG_KEY_TO_BACKEND_TYPE[configKey]];
 
-        const pendingRegistration =
-          typeof raw['pending-registration'] === 'number'
-            ? raw['pending-registration']
-            : 0;
-
-        const normalized: MaintenanceStatus = {
-          ...raw,
-          data: {
-            ...mData,
-            pendingSteps,
-            date: mData.date ?? mData.createdAt ?? mData.updatedAt ?? undefined,
-            status: mData.status ?? 'UNREGISTERED',
-          },
-          pendingRegistration,
-          tags: [],
-          tagInfo: [],
-        };
+        const normalized: MaintenanceStatus = raw
+          ? {
+              ...raw,
+              type: configKey,
+              data: {
+                status: raw.status ?? 'Unregistered',
+                date: raw.lastMaintenanceDate ?? '',
+                pendingSteps: 0,
+              },
+              pendingRegistration: 0,
+              tags: [],
+              tagInfo: [],
+            }
+          : {
+              type: configKey,
+              data: { status: 'Unregistered', date: '', pendingSteps: 0 },
+              pendingRegistration: 0,
+              tags: [],
+              tagInfo: [],
+            };
 
         normalized.tags = resolveTags(normalized);
         normalized.tagInfo = resolveMaintenanceTags(normalized);
@@ -140,18 +166,28 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     };
   }
 
-  async function getMaintenanceHistory(licensePlate: string, types?: string[]) {
+  async function getMaintenanceHistory(_licensePlate?: string, types?: string[]) {
     isLoading.value = true;
 
     try {
-      const query = types?.length
-        ? `?types=${encodeURIComponent(types.join(','))}`
-        : '';
+      // Não há rota de histórico server-side no contrato novo: busca a lista
+      // completa do carro e filtra por tipo no cliente. (types = enums UPPER_SNAKE.)
+      const carStore = useCarStore();
+      const carId = carStore.car?.id ?? carStore.cars[0]?.id;
+      if (!carId) {
+        history.value = [];
+        return history.value;
+      }
 
-      const url = `${baseApi}/v1/maintenance/history/${licensePlate}${query}`;
+      const url = `${baseApi}/v1/maintenance/car/${carId}`;
       const { data } = await api().get(url);
 
-      history.value = Array.isArray(data) ? data : [];
+      let list = Array.isArray(data) ? data : [];
+      if (types?.length) {
+        list = list.filter((m: any) => types.includes(m.type));
+      }
+
+      history.value = list;
       return history.value;
     } catch (err) {
       const error = err as AxiosError;

@@ -30,11 +30,11 @@ const currentCar = computed(() => carStore.car || carStore.cars[0] || {});
 const year = ref('');
 
 async function updateYear() {
-  if (!year.value || !currentCar.value.license_plate) return;
+  if (!year.value || !currentCar.value.id) return;
   try {
     const yearNumber = parseInt(year.value, 10);
     if (!isNaN(yearNumber)) {
-      await carStore.updateCar(currentCar.value.license_plate, { year: yearNumber });
+      await carStore.updateCar(currentCar.value.id, { year: yearNumber });
       router.back();
     }
   } catch (e) {
