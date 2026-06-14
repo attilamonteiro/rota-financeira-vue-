@@ -104,56 +104,31 @@ watch([email, confirmEmail], () => {
   validateForm();
 });
 
-const verifyEmail = async (email) => {
-  try {
-    const response = await store.verifyEmail(email);
-    return response;
-  } catch (error) {
-    // Captura statusCode do erro retornado pelo backend
-    if (error?.statusCode) {
-      throw error.statusCode;
-    }
-    if (error?.status) {
-      throw error.status;
-    }
-    if (error?.response?.status) {
-      throw error.response.status;
-    }
-    throw error;
-  }
-};
+const handleSubmit = async () => {
+  validateForm();
+  if (!isValid.value) return;
 
-const handleApiError = (statusCode) => {
-  if (statusCode === 404 || statusCode === 204) {
-    // Email não cadastrado ou resposta OK, pode avançar
-    if (isValid.value) {
+  isLoading.value = true;
+  try {
+    // GET /user/check-email?email= → { exists: boolean } (200 nos dois casos)
+    const { exists } = await store.checkEmail(email.value);
+
+    if (exists) {
+      // E-mail já cadastrado
+      isOpen.value = true;
+      modalContent.value = 'E-mail já cadastrado';
+      modalDescription.value = 'Faça o login no App';
+    } else {
+      // E-mail livre: avança para o próximo passo
       store.setEmail(email.value);
       store.setConfirmEmail(confirmEmail.value);
       router.push({ name: 'signup-step-2' });
     }
-  } else if (statusCode === 200) {
-    // Email já cadastrado
-    isOpen.value = true;
-    modalContent.value = 'E-mail já cadastrado';
-    modalDescription.value = 'Faça o login no App';
-  } else {
-    // Outros erros
+  } catch (error) {
+    console.error('Erro ao verificar e-mail:', error);
     isOpen.value = true;
     modalContent.value = 'Ocorreu um erro ao tentar cadastrar o e-mail';
     modalDescription.value = 'Tente novamente mais tarde';
-  }
-};
-
-const handleSubmit = async () => {
-  validateForm();
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const response = await verifyEmail(email.value);
-
-    // Se não lançar erro, assume que email está cadastrado (200)
-    handleApiError(200);
-  } catch (statusCode) {
-    handleApiError(statusCode);
   } finally {
     isLoading.value = false;
   }

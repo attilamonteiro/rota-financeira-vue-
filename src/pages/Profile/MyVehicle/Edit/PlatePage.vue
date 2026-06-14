@@ -35,9 +35,12 @@ const currentCar = computed(() => carStore.car || carStore.cars[0] || {});
 const plate = ref('');
 
 async function updatePlate() {
-  if (!plate.value || !currentCar.value.license_plate) return;
+  // NOTE: a placa é imutável no backend novo (não está no UpdateCarDto) → o
+  // updateCar ignora `license_plate`; este save é no-op. Editar placa deveria
+  // ser removido/desabilitado da UI.
+  if (!plate.value || !currentCar.value.id) return;
   try {
-    await carStore.updateCar(currentCar.value.license_plate, { license_plate: plate.value });
+    await carStore.updateCar(currentCar.value.id, { license_plate: plate.value });
     router.back();
   } catch (e) {
     console.error('Update failed', e);

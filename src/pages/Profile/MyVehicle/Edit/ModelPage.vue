@@ -35,9 +35,9 @@ const currentCar = computed(() => carStore.car || carStore.cars[0] || {});
 const model = ref('');
 
 async function updateModel() {
-  if (!model.value || !currentCar.value.license_plate) return;
+  if (!model.value || !currentCar.value.id) return;
   try {
-    await carStore.updateCar(currentCar.value.license_plate, { model: model.value });
+    await carStore.updateCar(currentCar.value.id, { model: model.value });
     router.back();
   } catch (e) {
     console.error('Update failed', e);

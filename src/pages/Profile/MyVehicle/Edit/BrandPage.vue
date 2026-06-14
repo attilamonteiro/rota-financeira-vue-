@@ -30,9 +30,9 @@ const currentCar = computed(() => carStore.car || carStore.cars[0] || {});
 const brand = ref('');
 
 async function updateBrand() {
-  if (!brand.value || !currentCar.value.license_plate) return;
+  if (!brand.value || !currentCar.value.id) return;
   try {
-    await carStore.updateCar(currentCar.value.license_plate, { brand: brand.value });
+    await carStore.updateCar(currentCar.value.id, { brand: brand.value });
     router.back();
   } catch (e) {
     console.error('Update failed', e);

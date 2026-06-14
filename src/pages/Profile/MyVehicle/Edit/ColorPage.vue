@@ -30,9 +30,9 @@ const currentCar = computed(() => carStore.car || carStore.cars[0] || {});
 const color = ref('');
 
 async function updateColor() {
-  if (!color.value || !currentCar.value.license_plate) return;
+  if (!color.value || !currentCar.value.id) return;
   try {
-    await carStore.updateCar(currentCar.value.license_plate, { color: color.value });
+    await carStore.updateCar(currentCar.value.id, { color: color.value });
     router.back();
   } catch (e) {
     console.error('Update failed', e);

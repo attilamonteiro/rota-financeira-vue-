@@ -54,3 +54,30 @@ export const MAINTENANCE_CONFIG: Record<
     duration: { years: 1, months: 0 },
   },
 };
+
+// Tipo do store (kebab) → enum do backend novo (UPPER_SNAKE).
+export const MAINTENANCE_TYPE_TO_BACKEND: Record<string, string> = {
+  oil: 'OIL',
+  battery: 'BATTERY',
+  'air-filter': 'AIR_FILTER',
+  'fuel-filter': 'FUEL_FILTER',
+  alignment: 'WHEEL_ALIGNMENT',
+};
+
+// Enum do backend (UPPER_SNAKE) → chave do MAINTENANCE_CONFIG (label EN).
+export const BACKEND_TYPE_TO_CONFIG_KEY: Record<string, MaintenanceTypeKey> = {
+  OIL: 'Oil Change',
+  FUEL_FILTER: 'Fuel Filter Change',
+  WHEEL_ALIGNMENT: 'Wheel Alignment',
+  BATTERY: 'Battery Change',
+  AIR_FILTER: 'Air Filter Change',
+};
+
+// Chave do MAINTENANCE_CONFIG (label EN) → enum do backend (UPPER_SNAKE).
+export const CONFIG_KEY_TO_BACKEND_TYPE: Record<MaintenanceTypeKey, string> = {
+  'Oil Change': 'OIL',
+  'Fuel Filter Change': 'FUEL_FILTER',
+  'Wheel Alignment': 'WHEEL_ALIGNMENT',
+  'Battery Change': 'BATTERY',
+  'Air Filter Change': 'AIR_FILTER',
+};

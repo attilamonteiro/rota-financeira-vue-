@@ -41,74 +41,56 @@ import { QSpinner } from 'quasar';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import { useCarStore } from '@/stores/carStore';
 
-const types = ['oil', 'battery', 'air-filter'];
+const types = ['OIL', 'BATTERY', 'AIR_FILTER', 'FUEL_FILTER', 'WHEEL_ALIGNMENT'];
 const maintenanceStore = useMaintenanceStore();
 const carStore = useCarStore();
 const maintenanceHistory = ref<HistoryCardProps[]>([]);
 const isLoading = ref(false);
 
-const typeTranslations: Record<string, string> = {
-  'Oil Change': 'Troca de óleo',
-  'Fuel Filter Change': 'Troca do filtro de combustível',
-  'Battery Change': 'Troca de bateria',
-  'Air Filter Change': 'Troca do filtro de ar',
-  'Wheel Change': 'Troca de roda',
-  'Oil Filter Change': 'Troca do filtro de óleo',
+const typeLabels: Record<string, string> = {
+  OIL: 'Troca de óleo',
+  FUEL_FILTER: 'Troca do filtro de combustível',
+  WHEEL_ALIGNMENT: 'Alinhamento e balanceamento',
+  BATTERY: 'Troca de bateria',
+  AIR_FILTER: 'Troca do filtro de ar',
+  WHEEL: 'Troca de roda',
 };
 
+const typeIcons: Record<string, HistoryCardProps['maintenances'][number]['icon']> = {
+  OIL: 'oil',
+  FUEL_FILTER: 'fuelFilter',
+  WHEEL_ALIGNMENT: 'alignment',
+  BATTERY: 'battery',
+  AIR_FILTER: 'airFilter',
+  WHEEL: 'wheel',
+};
+
+// Registro achatado de GET /maintenance/car/:carId (contrato novo).
 type MaintenanceApiItem = {
-  type:
-    | 'Oil Change'
-    | 'Battery Change'
-    | 'Air Filter Change'
-    | 'Wheel Change'
-    | 'Oil Filter Change'
-    | 'Fuel Filter Change';
-
-  data: {
-    id: string;
-    lastMaintenanceDate?: string;
-    lastMaintenanceKm?: number;
-    valor?: string;
-    batteryBrand?: string;
-    oilType?: string;
-    status?: string;
-  };
+  id: string;
+  type: string; // enum do backend (UPPER_SNAKE)
+  lastMaintenanceDate?: string;
+  lastMaintenanceKm?: number;
+  value?: number;
+  machineShop?: string;
+  status?: string;
 };
 
-function mapApiToHistoryCard(apiItem: MaintenanceApiItem): HistoryCardProps {
-  const formattedValue = apiItem.data.valor
-    ? new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-      }).format(Number(apiItem.data.valor))
-    : '-';
-  let icon: HistoryCardProps['maintenances'][number]['icon'] = 'oil';
-  switch (apiItem.type) {
-    case 'Oil Change':
-      icon = 'oil';
-      break;
-    case 'Air Filter Change':
-      icon = 'airFilter';
-      break;
-    case 'Wheel Change':
-      icon = 'wheel';
-      break;
-    case 'Battery Change':
-      icon = 'battery';
-      break;
-    case 'Oil Filter Change':
-      icon = 'oil';
-      break;
-    case 'Fuel Filter Change':
-      icon = 'fuelFilter';
-      break;
-  }
+function mapApiToHistoryCard(item: MaintenanceApiItem): HistoryCardProps {
+  const formattedValue =
+    item.value != null
+      ? new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(Number(item.value))
+      : '-';
+
+  const icon = typeIcons[item.type] ?? 'oil';
 
   let month = '';
   let date = '-';
-  if (apiItem.data.lastMaintenanceDate) {
-    const d = new Date(apiItem.data.lastMaintenanceDate);
+  if (item.lastMaintenanceDate) {
+    const d = new Date(item.lastMaintenanceDate);
     month = d.toLocaleString('pt-BR', { month: 'long' });
     date = d.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -118,21 +100,19 @@ function mapApiToHistoryCard(apiItem: MaintenanceApiItem): HistoryCardProps {
     });
   }
 
-  const card: HistoryCardProps = {
-    id: apiItem.data.id,
+  return {
+    id: item.id,
     month,
     date,
-    km: apiItem.data.lastMaintenanceKm?.toString() || '-',
+    km: item.lastMaintenanceKm?.toString() || '-',
     maintenances: [
       {
         icon,
-        title: typeTranslations[apiItem.type] || apiItem.type,
+        title: typeLabels[item.type] ?? item.type,
         description: formattedValue,
       },
     ],
   };
-
-  return card;
 }
 
 onMounted(async () => {
@@ -145,9 +125,16 @@ watch(
     if (plate) {
       isLoading.value = true;
       await maintenanceStore.getMaintenanceHistory(plate, types);
-      maintenanceHistory.value = (maintenanceStore.history as unknown[]).map(
-        (item) => mapApiToHistoryCard(item as MaintenanceApiItem)
-      ) as HistoryCardProps[];
+      const records = (
+        maintenanceStore.history as unknown as MaintenanceApiItem[]
+      )
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.lastMaintenanceDate ?? 0).getTime() -
+            new Date(a.lastMaintenanceDate ?? 0).getTime()
+        );
+      maintenanceHistory.value = records.map(mapApiToHistoryCard);
       isLoading.value = false;
     }
   },

@@ -7,28 +7,22 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-//import { useRegisterStore } from '@/stores/registerStore';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
 
-const route = useRoute();
 const router = useRouter();
-//const registerStore = useRegisterStore();
+const baseApi = import.meta.env.VITE_ROTA_API;
 
-onMounted(() => {
-  let token = route.query.token as string | undefined;
-
-  if (!token) {
-    const hash = window.location.hash;
-    const qs = hash.includes('?') ? hash.split('?')[1] : '';
-    token = new URLSearchParams(qs).get('token') || undefined;
-  }
-
-  console.log('TOKEN:', token);
-
-  if (token) {
-    localStorage.setItem('jwt', token);
+onMounted(async () => {
+  // O backend concluiu o OAuth e setou o cookie httpOnly de sessão no redirect.
+  // Não há mais token na URL. Confirmamos a sessão com uma chamada autenticada.
+  // (raw axios + withCredentials para NÃO disparar o interceptor global de 401.)
+  try {
+    await axios.get(`${baseApi}/v1/user/me`, {
+      withCredentials: true,
+    });
     router.replace({ name: 'home' });
-  } else {
+  } catch {
     router.replace({ name: 'signin' });
   }
 });
